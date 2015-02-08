@@ -1,5 +1,6 @@
 package com.prototype.whcs.seniordesignprototype;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
@@ -32,6 +33,7 @@ public class LEDToggleActivity extends ActionBarActivity {
 
     private static final int REQUEST_ENABLE_BT = 1;
     // Well known SPP UUID
+    //This SPP is a property of the bluetooth module.
     private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     private BluetoothAdapter myBluetoothAdapter;
 
@@ -50,6 +52,12 @@ public class LEDToggleActivity extends ActionBarActivity {
                 Toast.makeText(getApplicationContext(), "Your device does not support Bluetooth",
                         Toast.LENGTH_LONG).show();
             }
+
+            /*
+            * SupportFragmentManagers are used to switch between SupportFragments (not the same as reg. fragments
+            * because compatible with older APIs). You do the switching within a transaction. Common transactions
+            * are adding a new fragment to the activity, replacing the fragment, adding fragment to the back stack.
+             */
             else {
                 if(!myBluetoothAdapter.isEnabled())
                 {
@@ -92,38 +100,29 @@ public class LEDToggleActivity extends ActionBarActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    /* Options include
-    * "ledtoggle"
-    * "bluetoothconnect"
-    * "bluetoothenable"
-     */
-    private void changeFragment(String fragmentName)
-    {
-        Fragment fg;
-
-        switch(fragmentName)
-        {
-            case "ledtoggle":
-                fg = new LEDToggleFragment();
-                getSupportFragmentManager().beginTransaction().add(R.id.container, fg).commit();
-                break;
-            case "bluetoothconnect":
-                fg = new BluetoothConnectFragment();
-                getSupportFragmentManager().beginTransaction().add(R.id.container, fg).commit();
-                break;
-            case "bluetoothenable":
-                    break;
-        }
-    };
-
     /**
-     * A placeholder fragment containing a simple view.
+     * The LEDToggleFragment has a button that should toggle the LED attached to the ATMEGA88.
+     *
+     * When the fragment is created it checks to see if it was created with a
+     * Bluetooth Device selected. If it wasn't it swaps itself with the bluetooth connect fragment.
+     *
+     * Once the LEDToggle fragment knows it has a target device it attempts to connect to it
+     * It then opens input and output stream.]
+     *
+     * Pressing the toggle button sends either 'A' or 'B' to the bluetooth module.
+     * 'A' for on 'B' for off.
+     * Then the app reads whatever the bluetooth module sent back to it. BLOCKING CALL.
+     * It makes a TOAST with this data and displays it to the user.
+     *
+     * It is important to close the input and output stream whenever leaving the app.
+     * These resources tie up communication with the bluetooth module.
      */
     public static class LEDToggleFragment extends Fragment {
 
         public LEDToggleFragment() {
         }
 
+        @SuppressLint("ValidFragment")
         public LEDToggleFragment(BluetoothDevice pairedDevice)
         {
             this.pairedDevice = pairedDevice;
@@ -247,7 +246,15 @@ public class LEDToggleActivity extends ActionBarActivity {
 
 
     /**
-     * A placeholder fragment containing a simple view.
+     * The bluetooth connect fragment scans bluetooth devices that
+     * you are paired too or optionally allows pairing of
+     * new devices ( not implemented)
+     * You can select one of the paired devices that you want to communicate with.
+     * This brings up the LEDToggleFragment which tries to communicate with the
+     * selected device.
+     *
+     * Maybe When the user picks a paired device from this fragment it
+     * should be verified before being sent to LEDToggle.
      */
     public static class BluetoothConnectFragment extends Fragment {
 
@@ -315,6 +322,12 @@ public class LEDToggleActivity extends ActionBarActivity {
 //                                Toast.LENGTH_SHORT).show();
 //                    }
 
+
+                    /*
+                    * Code used for debugging to see if a connection is being made to the
+                    * targetted blue tooth device. This allows us to create a connection without leaving
+                    * BluetoothConnect Fragment.
+                     */
 //                    new Thread(new Runnable() {
 //                        @Override
 //                        public void run() {
@@ -391,7 +404,10 @@ public class LEDToggleActivity extends ActionBarActivity {
     }
 
     /**
-     * A placeholder fragment containing a simple view.
+     * The EnableBluetoothFragment is designed to appear when the
+     * app is entered with Bluetooth currently disabled.
+     * Once the user activates bluetooth with the button in the fragment
+     * The fragment changes to the BluetoothConnect Fragment.
      */
     public static class EnableBluetoothFragment extends Fragment {
 
