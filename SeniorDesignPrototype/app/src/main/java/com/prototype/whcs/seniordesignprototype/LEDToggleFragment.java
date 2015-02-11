@@ -8,7 +8,10 @@ import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.support.v4.app.Fragment;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -56,7 +59,6 @@ public class LEDToggleFragment extends Fragment {
             btSock = pairedDevice.createInsecureRfcommSocketToServiceRecord(MY_UUID);
             btSock.connect();
             oStream = btSock.getOutputStream();
-            iSR = new InputStreamReader(btSock.getInputStream());
         } catch (IOException e) {
             Toast.makeText(getActivity(), "Couldn't get output stream", Toast.LENGTH_SHORT);
         }
@@ -67,10 +69,7 @@ public class LEDToggleFragment extends Fragment {
     private BluetoothDevice pairedDevice;
     private TextView btTextView;
     private OutputStream oStream;
-    private InputStream iStream;
-    private InputStreamReader iSR;
     private boolean toggleStateOn = true;
-    private char buffer[] = new char[64];
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -85,6 +84,10 @@ public class LEDToggleFragment extends Fragment {
         toggleButton = (Button) rootView.findViewById(R.id.toggleButton);
         btTextView = (TextView) rootView.findViewById(R.id.btTextView);
         setupUI();
+
+        BluetoothSocketListener bsl = new BluetoothSocketListener(btSock, new Handler(Looper.getMainLooper()), btTextView);
+        Thread messageListener = new Thread(bsl);
+        messageListener.start();
 
         return rootView;
     }
@@ -105,19 +108,11 @@ public class LEDToggleFragment extends Fragment {
                         oStream.write(new byte[]{'B'});
                         oStream.flush();
                         toggleStateOn = !toggleStateOn;
-                        while(!iSR.ready());
-                        iSR.read(buffer, 0,1);
-                        Toast.makeText(getActivity().getApplicationContext(),buffer[0]+ " ",
-                                Toast.LENGTH_SHORT).show();
                     }
                     else {
                         oStream.write(new byte[]{'A'});
                         oStream.flush();
                         toggleStateOn = !toggleStateOn;
-                        while(!iSR.ready());
-                        iSR.read(buffer, 0,1);
-                        Toast.makeText(getActivity().getApplicationContext(),buffer[0]+ " ",
-                                Toast.LENGTH_SHORT).show();
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -147,15 +142,6 @@ public class LEDToggleFragment extends Fragment {
             }
             oStream = null;
         }
-        if(iStream != null)
-        {
-            try {
-                iStream.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            iStream = null;
-        }
         super.onStop();
     }
 
@@ -166,6 +152,61 @@ public class LEDToggleFragment extends Fragment {
         if(pairedDevice == null)
         {
             replaceWithConnectFragment();
+        }
+    }
+
+    private class BluetoothSocketListener implements Runnable {
+
+        private BluetoothSocket socket;
+        private TextView textView;
+        private Handler handler;
+
+        public BluetoothSocketListener(BluetoothSocket socket,
+                                       Handler handler, TextView textView) {
+            this.socket = socket;
+            this.textView = textView;
+            this.handler = handler;
+        }
+
+        public void run() {
+            int bufferSize = 1024;
+            byte[] buffer = new byte[bufferSize];
+            try {
+                InputStream inStream = socket.getInputStream();
+                int bytesRead = -1;
+                String message = "";
+                while (true) {
+                    message = "";
+                    bytesRead = inStream.read(buffer);
+                    if (bytesRead != -1) {
+                        Log.d("BLUETOOTH_COMMS", "received " + (char)buffer[0]);
+                        while ((bytesRead == bufferSize) && (buffer[bufferSize - 1] != 0)) {
+                            message = message + new String(buffer, 0, bytesRead);
+                            bytesRead = inStream.read(buffer);
+                        }
+                        message = message + new String(buffer, 0, bytesRead - 1);
+
+                        handler.post(new MessagePoster(textView, "" + (char)buffer[0]));
+                        socket.getInputStream();
+                    }
+                }
+            } catch (IOException e) {
+                Log.d("BLUETOOTH_COMMS", e.getMessage());
+            }
+        }
+    }
+
+    private class MessagePoster implements Runnable {
+        private TextView textView;
+        private String message;
+
+        public MessagePoster(TextView textView, String message) {
+            this.textView = textView;
+            this.message = message;
+        }
+
+        public void run() {
+            textView.setText(message);
         }
     }
 }
